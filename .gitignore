@@ -1,1 +1,8 @@
+# Python virtual environment and cache
+__pycache__/
+*.pyc
+.venv/
+
+# Lock private keys locally
+backend/serviceAccountKey.json
 serviceAccountKey.json
