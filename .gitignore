@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "simedarby-township-gate",
+  "private_key_id": "8e0a986095ba8a3f05aec389b0c01a63b79d62f7",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC+B0BTSGioVylA\nOC6hFaTjkAkiOCRnyd2jgP7mDmTvpXHPxRyQZw3Pp9W7OQcFt67pwjp+Ea+jvdBg\nz8qOEsje5mXkfcUNNbQkD5f5GFJRz7h15Zc5/n7aUsZ3fVC4ixFyxtclSH/fMKB1\nz6Y/52DkO9PA64UghsP82zzOoJL8IeM9QHVWxr6zjcsyKRZPGvRFtEDVtjn9pL4w\nlw2jrnz4upZuCQOSNyULdx/L0pqFd1id63FQy5EzCxEm8YvuI/GCGRojw6/4A1f6\nRJc5jTddGUfe/pgoMhpEuRHpngPHcYpv35cObUirgzrZlcVbpu+M2ZVQIx/b5zrC\ndNF+QHsxAgMBAAECggEADp+5PA+I+leG1andMMldIKQfh9IhPxmCZIhTVXoLG4Q0\nb4RgT96WagIlCRz45OA/Zj7ryHLs/OFpLWIgWPGqIrlBYyWoqf0ViWbnz6QnBaPC\nMtSB4FUtBvkyy9RJh4IwTBBwUy6ypIb1+ksKJMXWJ4pRH/ogCyJD5+wpUE98MEn7\nGre6HNGm1v67QeiwTGERiHthYUlb3nj08eiL4DHqw/VzpGGtmurARe6YPimYXVgy\nx1dqjRkYtDTzG25X7Aovex8oABhxn5wVAq1TwfV2lVVeU6yYKmr5Q+GponxmiTHq\nuOj5FxJYeXd/HaYdrqEoHCujBi3LUUgPxeRX/qWV1wKBgQD7EsByn6j2dDCUaVbH\nnjsRHd5flL7fxDU8UVsVtmQHoDBDT4U8W/Ep/RtemS/7H+5lHpzSVrntNh9OGa0e\ni+NbqrmjOM01UUVq4MZUc522txZnue9tblng3mM9BGcBSo5DWt2eRkoYiDebTHD3\npZJgufIvnQ4p/UoigDp+MTuMAwKBgQDBwdhDQJUBcd13uQNUWNdDShoOMR4SvV2R\ngy8wNKrtPlaFRub19KZpeME2O84sBp0SE8P62Uv/VnNy1Y/9FjXzTBw6lCS1ekRh\nC0OC5FQhASz/NOzcwqtlL6wRv0VsiuzGEB/+0dxnMePRcIEXRemUKYk0hiUAEXRO\nwA1O9iRnuwKBgDPw3ytXaGcEBoDNggxt6Z5S5Yw0g4BbYQAHfKZzQyJou1NRgijI\nhI3BNQZO/qQfKPx2Zs8E7hXq2nMX0L6/BdwS57CisaFUHN5Nffo+qOQB4Hq49pVW\n/PUOTM10ubKEsAWzKKHzvKRymb5hBAXXlP65uSasgR+irNGSYYd1u/HtAoGAPavx\nphZcV0Vi9MSS5roQan6fpHzF0bksmzBiSLm63iDFcU6MHSVuAoxJE3Ydva2tOR/J\ndYLMyc0+mgKX/jqfmX1UTuDwfkMYmLr5FiSPEqJJLEIwUmQ0IdT2s/9pnY7qpnBj\nfrxVpxMeLH/e1wWNv3cpEOrRxB/KIXbHxaZbGBkCgYBmiLIZbMsBe5SGFVwkPxap\nt+ItaBUgDgyWD9qQbwkGx5jogblashvBwiGo0QEcvZ5XEmN8pJTQ4auUSzAhofFI\nma9LizCoKurvOZx0D76t9Wk+jxcqVTUd5QJ7r4bLLSOMY2pBqCcc2V6wvVnys+YT\nWfnUtzKslraIK6JEGguwUg==\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@simedarby-township-gate.iam.gserviceaccount.com",
+  "client_id": "109842664356008972520",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40simedarby-township-gate.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
