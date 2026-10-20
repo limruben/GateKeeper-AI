@@ -1,0 +1,46 @@
+# ==========================================
+# 🔒 1. SECRET KEYS & CREDENTIALS (ALL FOLDERS)
+# ==========================================
+*firebase-adminsdk*.json
+serviceAccountKey.json
+*.pem
+*.key
+.env
+.env.*
+
+# ==========================================
+# 🐍 2. BACKEND & CAMERA (Python / Raspberry Pi)
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+ENV/
+
+# Ignore temporary test videos/images captured by Raspberry Pi camera
+camera/captures/
+camera/temp_*.jpg
+camera/temp_*.png
+*.mp4
+*.avi
+
+# ==========================================
+# 📱 3. FRONTEND (Flutter / Dart)
+# ==========================================
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/pubspec.lock
+
+# ==========================================
+# 💻 4. OS & EDITOR JUNK (Windows / Mac / VS Code)
+# ==========================================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
