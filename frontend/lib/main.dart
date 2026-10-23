@@ -1,23 +1,33 @@
 import 'dart:async';
-import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:intl/intl.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+  } on FirebaseException catch (error) {
+    debugPrint('Firebase is not configured; starting in demo mode: $error');
+  } on AssertionError catch (error) {
+    debugPrint('Firebase is not configured; starting in demo mode: $error');
+  }
   runApp(const SmartTownshipApp());
 }
 
 // ============================================================================
-// 1. GLOBAL DEMO STATE (Simulates Firebase Firestore in Real-Time)
+// 1. FIRESTORE-BACKED APPLICATION STATE
 // ============================================================================
 class GuestInvite {
-  String id;
-  String guestName;
-  String plateNumber;
-  DateTime startTime;
-  DateTime endTime;
-  String status; // 'PENDING', 'APPROVED', 'REJECTED'
+  final String id;
+  final String guestName;
+  final String plateNumber;
+  final DateTime startTime;
+  final DateTime endTime;
+  final String status; // 'PENDING', 'APPROVED', 'REJECTED'
 
   GuestInvite({
     required this.id,
@@ -48,81 +58,221 @@ class GateScanLog {
 }
 
 class AppState extends ChangeNotifier {
-  // Resident Unit Info
-  String unitNumber = "A-10-02 (Elmina Green)";
-  String residentName = "Lim Zhan Xuan";
-  String residentPlate = "WXY1234";
-  bool isMaintenancePaid = false; // Starts OVERDUE to demo the restriction!
-  double overdueAmount = 150.00;
+  static const String unitDocumentId = 'UNIT_A_10_02';
 
-  // Guest Invitations List
-  List<GuestInvite> invites = [
-    GuestInvite(
-      id: "INV-8821",
-      guestName: "Grab Driver / Visitor",
-      plateNumber: "VAB5678",
-      startTime: DateTime.now().subtract(const Duration(minutes: 15)),
-      endTime: DateTime.now().add(const Duration(hours: 2)),
-      status: "APPROVED",
-    ),
-    GuestInvite(
-      id: "INV-9904",
-      guestName: "Jason Tan",
-      plateNumber: "PKR8899",
-      startTime: DateTime.now().add(const Duration(hours: 1)),
-      endTime: DateTime.now().add(const Duration(hours: 4)),
-      status: "PENDING",
-    ),
-  ];
+  final FirebaseFirestore? firestore = _tryGetFirestore();
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _unitsSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _invitationsSubscription;
+
+  String unitNumber = '';
+  String residentName = '';
+  String residentPlate = '';
+  bool isMaintenancePaid = false;
+  double overdueAmount = 0;
+  List<GuestInvite> invites = [];
 
   // Live Guardhouse Logs
   List<GateScanLog> scanLogs = [];
 
+  AppState() {
+    if (firestore == null) {
+      unitNumber = unitDocumentId;
+      residentName = 'Demo Resident';
+      residentPlate = 'DEMO123';
+      overdueAmount = 120;
+      invites = [
+        GuestInvite(
+          id: 'demo-invite',
+          guestName: 'Demo Visitor',
+          plateNumber: 'VISITOR1',
+          startTime: DateTime.now().subtract(const Duration(minutes: 15)),
+          endTime: DateTime.now().add(const Duration(hours: 3)),
+          status: 'APPROVED',
+        ),
+      ];
+    } else {
+      _listenToUnit();
+      _listenToInvitations();
+    }
+  }
+
+  static FirebaseFirestore? _tryGetFirestore() {
+    try {
+      return FirebaseFirestore.instance;
+    } on FirebaseException catch (error) {
+      debugPrint('Firestore is unavailable; using demo mode: $error');
+      return null;
+    } on AssertionError catch (error) {
+      debugPrint('Firestore is unavailable; using demo mode: $error');
+      return null;
+    }
+  }
+
+  void _listenToUnit() {
+    _unitsSubscription = firestore!
+        .collection('units')
+        .snapshots()
+        .listen(
+          (snapshot) {
+            QueryDocumentSnapshot<Map<String, dynamic>>? unitDocument;
+            for (final document in snapshot.docs) {
+              if (document.id == unitDocumentId) {
+                unitDocument = document;
+                break;
+              }
+            }
+            if (unitDocument == null) {
+              unitNumber = '';
+              residentName = '';
+              residentPlate = '';
+              isMaintenancePaid = false;
+              overdueAmount = 0;
+            } else {
+              final data = unitDocument.data();
+              unitNumber = unitDocument.id;
+              residentName = data['owner_name'] as String? ?? '';
+              residentPlate = data['resident_plate'] as String? ?? '';
+              isMaintenancePaid = data['maintenance_status'] == 'PAID';
+              overdueAmount = (data['overdue_amount'] as num?)?.toDouble() ?? 0;
+            }
+            notifyListeners();
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            debugPrint('Failed to listen to units: $error');
+          },
+        );
+  }
+
+  void _listenToInvitations() {
+    _invitationsSubscription = firestore!
+        .collection('invitations')
+        .where('host_unit', isEqualTo: unitDocumentId)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            invites = snapshot.docs.map((document) {
+              final data = document.data();
+              return GuestInvite(
+                id: document.id,
+                guestName: data['guest_name'] as String? ?? '',
+                plateNumber: data['guest_plate'] as String? ?? '',
+                startTime: _asDateTime(data['valid_start']),
+                endTime: _asDateTime(data['valid_end']),
+                status: data['status'] as String? ?? 'PENDING',
+              );
+            }).toList()..sort((a, b) => b.startTime.compareTo(a.startTime));
+            notifyListeners();
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            debugPrint('Failed to listen to invitations: $error');
+          },
+        );
+  }
+
+  static DateTime _asDateTime(Object? value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
   // Actions
-  void payMaintenanceFee() {
-    isMaintenancePaid = true;
-    overdueAmount = 0.0;
-    notifyListeners();
-  }
-
-  void toggleFeeStatusForDemo() {
-    isMaintenancePaid = !isMaintenancePaid;
-    overdueAmount = isMaintenancePaid ? 0.0 : 150.00;
-    notifyListeners();
-  }
-
-  void updateInviteStatus(String id, String newStatus) {
-    final index = invites.indexWhere((inv) => inv.id == id);
-    if (index != -1) {
-      invites[index].status = newStatus;
+  Future<void> payMaintenanceFee() async {
+    if (firestore == null) {
+      isMaintenancePaid = true;
+      overdueAmount = 0;
       notifyListeners();
+      return;
     }
+    await firestore!.collection('units').doc(unitDocumentId).update({
+      'maintenance_status': 'PAID',
+    });
   }
 
-  void updateGuestPlate(String id, String newPlate) {
-    final index = invites.indexWhere((inv) => inv.id == id);
-    if (index != -1) {
-      invites[index].plateNumber = newPlate.toUpperCase().replaceAll(' ', '');
+  Future<void> updateInviteStatus(String id, String newStatus) async {
+    if (firestore == null) {
+      final index = invites.indexWhere((invite) => invite.id == id);
+      if (index != -1) {
+        final invite = invites[index];
+        invites[index] = GuestInvite(
+          id: invite.id,
+          guestName: invite.guestName,
+          plateNumber: invite.plateNumber,
+          startTime: invite.startTime,
+          endTime: invite.endTime,
+          status: newStatus,
+        );
+        notifyListeners();
+      }
+      return;
+    }
+    await firestore!.collection('invitations').doc(id).update({
+      'status': newStatus,
+    });
+  }
+
+  Future<void> updateGuestPlate(String id, String newPlate) async {
+    final cleanedPlate = newPlate.toUpperCase().replaceAll(' ', '');
+    if (firestore == null) {
+      final index = invites.indexWhere((invite) => invite.id == id);
+      if (index != -1) {
+        final invite = invites[index];
+        invites[index] = GuestInvite(
+          id: invite.id,
+          guestName: invite.guestName,
+          plateNumber: cleanedPlate,
+          startTime: invite.startTime,
+          endTime: invite.endTime,
+          status: invite.status,
+        );
+        notifyListeners();
+      }
+      return;
+    }
+    await firestore!.collection('invitations').doc(id).update({
+      'guest_plate': cleanedPlate,
+    });
+  }
+
+  Future<void> createGuestInvite(
+    String name,
+    String plate,
+    DateTime start,
+    DateTime end,
+  ) async {
+    final cleanedPlate = plate.toUpperCase().replaceAll(' ', '');
+    if (firestore == null) {
+      invites.add(
+        GuestInvite(
+          id: 'demo-${DateTime.now().microsecondsSinceEpoch}',
+          guestName: name,
+          plateNumber: cleanedPlate,
+          startTime: start,
+          endTime: end,
+          status: 'PENDING',
+        ),
+      );
       notifyListeners();
+      return;
     }
+    await firestore!.collection('invitations').add({
+      'host_unit': unitDocumentId,
+      'guest_name': name,
+      'guest_plate': cleanedPlate,
+      'valid_start': Timestamp.fromDate(start),
+      'valid_end': Timestamp.fromDate(end),
+      'status': 'PENDING',
+      'pass_type': plate == 'QR-ONLY' ? 'DYNAMIC_QR' : 'ANPR_ONLY',
+    });
   }
 
-  void createGuestInvite(String name, String plate, DateTime start, DateTime end) {
-    invites.insert(
-      0,
-      GuestInvite(
-        id: "INV-${1000 + Random().nextInt(9000)}",
-        guestName: name,
-        plateNumber: plate.toUpperCase().replaceAll(' ', ''),
-        startTime: start,
-        endTime: end,
-        status: "APPROVED",
-      ),
-    );
-    notifyListeners();
+  @override
+  void dispose() {
+    _unitsSubscription?.cancel();
+    _invitationsSubscription?.cancel();
+    super.dispose();
   }
 
-  // Simulates @俊杰's Python FastAPI + @maybeimawok's Raspberry Pi Scan
   void simulateGateScan(String inputPlateOrQr, {bool isQr = false}) {
     final cleaned = inputPlateOrQr.toUpperCase().replaceAll(' ', '');
     final now = DateTime.now();
@@ -205,7 +355,9 @@ class AppState extends ChangeNotifier {
           timestamp: now,
         ),
       );
-    } else if (now.isBefore(matchedInvite.startTime.subtract(const Duration(minutes: 30))) ||
+    } else if (now.isBefore(
+          matchedInvite.startTime.subtract(const Duration(minutes: 30)),
+        ) ||
         now.isAfter(matchedInvite.endTime)) {
       scanLogs.insert(
         0,
@@ -296,10 +448,9 @@ class _MainRoleSwitcherScreenState extends State<MainRoleSwitcherScreen> {
               ],
             ),
             actions: [
-              // Quick Demo Toggle for Maintenance Fee Status
               TextButton.icon(
                 style: TextButton.styleFrom(foregroundColor: Colors.white),
-                onPressed: globalAppState.toggleFeeStatusForDemo,
+                onPressed: null,
                 icon: Icon(
                   globalAppState.isMaintenancePaid
                       ? Icons.check_circle
@@ -309,7 +460,9 @@ class _MainRoleSwitcherScreenState extends State<MainRoleSwitcherScreen> {
                       : Colors.amberAccent,
                 ),
                 label: Text(
-                  globalAppState.isMaintenancePaid ? "Fee: PAID" : "Fee: OVERDUE",
+                  globalAppState.isMaintenancePaid
+                      ? "Fee: PAID"
+                      : "Fee: OVERDUE",
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -319,7 +472,8 @@ class _MainRoleSwitcherScreenState extends State<MainRoleSwitcherScreen> {
           body: screens[_selectedIndex],
           bottomNavigationBar: NavigationBar(
             selectedIndex: _selectedIndex,
-            onDestinationSelected: (idx) => setState(() => _selectedIndex = idx),
+            onDestinationSelected: (idx) =>
+                setState(() => _selectedIndex = idx),
             destinations: const [
               NavigationDestination(
                 icon: Icon(Icons.home_outlined),
@@ -387,13 +541,19 @@ class ResidentScreen extends StatelessWidget {
           FilledButton(
             onPressed: () {
               if (nameCtrl.text.isNotEmpty) {
-                appState.createGuestInvite(
-                  nameCtrl.text,
-                  plateCtrl.text.isEmpty ? "QR-ONLY" : plateCtrl.text,
-                  DateTime.now(),
-                  DateTime.now().add(const Duration(hours: 3)),
-                );
-                Navigator.pop(ctx);
+                appState
+                    .createGuestInvite(
+                      nameCtrl.text,
+                      plateCtrl.text.isEmpty ? "QR-ONLY" : plateCtrl.text,
+                      DateTime.now(),
+                      DateTime.now().add(const Duration(hours: 3)),
+                    )
+                    .then((_) {
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    })
+                    .catchError((Object error) {
+                      debugPrint('Failed to create guest invite: $error');
+                    });
               }
             },
             child: const Text("Generate Pass"),
@@ -490,15 +650,31 @@ class ResidentScreen extends StatelessWidget {
                       backgroundColor: Colors.red.shade700,
                     ),
                     onPressed: () {
-                      appState.payMaintenanceFee();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            "Payment Successful via DuitNow! Fast-Track ANPR Gate Unlocked.",
-                          ),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
+                      appState
+                          .payMaintenanceFee()
+                          .then((_) {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  "Payment Successful via DuitNow! Fast-Track ANPR Gate Unlocked.",
+                                ),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          })
+                          .catchError((Object error) {
+                            debugPrint('Failed to pay maintenance fee: $error');
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  "Payment failed. Please try again.",
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          });
                     },
                     icon: const Icon(Icons.bolt),
                     label: const Text(
@@ -642,6 +818,9 @@ class _GuestPassScreenState extends State<GuestPassScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.appState.invites.isEmpty) {
+      return const Center(child: Text("No visitor passes are available yet."));
+    }
     final activeInvite = widget.appState.invites.first;
     final dynamicQrPayload =
         "${activeInvite.id}|${activeInvite.plateNumber}|T:$_timeBucket";
@@ -698,7 +877,11 @@ class _GuestPassScreenState extends State<GuestPassScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.sync, size: 16, color: Colors.teal),
+                            const Icon(
+                              Icons.sync,
+                              size: 16,
+                              color: Colors.teal,
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               "Dynamic Token refreshes in $_secondsRemaining s",
@@ -793,8 +976,9 @@ class GuardDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final latestScan =
-        appState.scanLogs.isNotEmpty ? appState.scanLogs.first : null;
+    final latestScan = appState.scanLogs.isNotEmpty
+        ? appState.scanLogs.first
+        : null;
     final timeFormat = DateFormat('HH:mm:ss');
 
     return Padding(
@@ -837,19 +1021,25 @@ class GuardDashboardScreen extends StatelessWidget {
                         ),
                       ),
                       ElevatedButton.icon(
-                        onPressed: () => appState.simulateGateScan(
-                          appState.invites.first.plateNumber,
-                        ),
+                        onPressed: appState.invites.isEmpty
+                            ? null
+                            : () => appState.simulateGateScan(
+                                appState.invites.first.plateNumber,
+                              ),
                         icon: const Icon(Icons.badge),
                         label: Text(
-                          "Scan Guest Plate (${appState.invites.first.plateNumber})",
+                          appState.invites.isEmpty
+                              ? "Scan Guest Plate (none)"
+                              : "Scan Guest Plate (${appState.invites.first.plateNumber})",
                         ),
                       ),
                       ElevatedButton.icon(
-                        onPressed: () => appState.simulateGateScan(
-                          appState.invites.first.id,
-                          isQr: true,
-                        ),
+                        onPressed: appState.invites.isEmpty
+                            ? null
+                            : () => appState.simulateGateScan(
+                                appState.invites.first.id,
+                                isQr: true,
+                              ),
                         icon: const Icon(Icons.qr_code_scanner),
                         label: const Text("Scan Grab Dynamic QR"),
                       ),
